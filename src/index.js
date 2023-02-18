@@ -3,7 +3,6 @@ const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const routes = require('./routes');
-
 const { error404, nextHandler } = require('./utils/errors');
 
 const app = express();

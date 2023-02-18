@@ -1,0 +1,17 @@
+{
+  "extends": [
+    "airbnb-base",
+    "prettier",
+    "plugin:node/recommended",
+    "plugin:security/recommended"
+  ],
+  "plugins": ["prettier", "mocha"],
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "class-methods-use-this": "off"
+  },
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  }
+}

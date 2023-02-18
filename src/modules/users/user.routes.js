@@ -8,9 +8,9 @@ const {
   resetPasswordRes,
   confirm,
   deleteUser,
-} = require('./userController');
+} = require('./user.controller');
 const { isAdmin, isAuth } = require('../../middlewares/auth');
-const userValidator = require('./userValidation');
+const userValidator = require('./user.validation');
 const { validate } = require('../../middlewares');
 
 const router = express.Router();
@@ -26,7 +26,7 @@ router.post('/register', validate(userValidator.register), register);
 router.post('/confirm/:token', validate(userValidator.confirm), confirm);
 
 router.post(
-  '/reset-password/:email',
+  '/reset-password',
   validate(userValidator.resetReq),
   resetPasswordReq
 );

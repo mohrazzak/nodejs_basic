@@ -1,7 +1,7 @@
 // const userRoutes = require('./userRoutes');
-const UserDAL = require('./UserDAL');
-const UserServices = require('./UserServices');
-const User = require('./User');
+const UserDAL = require('./user.dal');
+const UserServices = require('./user.service');
+const User = require('./user.model');
 
 const userDAL = new UserDAL(User);
 const userServices = new UserServices(userDAL);

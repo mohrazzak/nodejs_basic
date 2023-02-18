@@ -7,20 +7,18 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await userServices.getUserByEmail(email);
+    const user = await userServices.getByEmail(email);
     if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
     if (!user.isActive)
       throw new ApiError('User is not active.', StatusCodes.BAD_REQUEST);
 
-    const passMatch = await userServices.comparePasswords({
+    await userServices.isPasswordMatch({
       password,
       hashedPassword: user.password,
     });
-    if (!passMatch)
-      throw new ApiError('Password is incorrect.', StatusCodes.BAD_REQUEST);
 
     const token = userServices.genToken(user, 'confirm', 60);
-    const resUser = userServices.generalize(user);
+    const resUser = userServices.omitPassword(user);
 
     responser(res, StatusCodes.OK, {
       token,
@@ -34,7 +32,7 @@ exports.login = async (req, res, next) => {
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-    const doesUserExist = await userServices.getUserByEmail(email);
+    const doesUserExist = await userServices.getByEmail(email);
     if (doesUserExist)
       throw new ApiError('Email already exists', StatusCodes.BAD_REQUEST);
 
@@ -50,7 +48,7 @@ exports.register = async (req, res, next) => {
         name,
         email,
       });
-    const resUser = userServices.generalize(user);
+    const resUser = userServices.omitPassword(user);
 
     const emailToken = userServices.genToken(resUser, 'confirm', 60);
     await userServices.sendMail(
@@ -60,7 +58,7 @@ exports.register = async (req, res, next) => {
       'confirm'
     );
 
-    responser(res, StatusCodes.CREATED, resUser);
+    responser(res, StatusCodes.CREATED, { user: resUser });
   } catch (error) {
     next(error);
   }
@@ -70,7 +68,12 @@ exports.confirm = async (req, res, next) => {
   try {
     const { token } = req.params;
     const decodedToken = userServices.verifyToken(token, 'confirm');
-    await userServices.activate(decodedToken.id);
+    const activated = await userServices.activate(decodedToken.id);
+    if (!activated)
+      throw new ApiError(
+        'Failed to activate user account. Please make sure your activation link is valid.',
+        StatusCodes.BAD_REQUEST
+      );
     responser(res);
   } catch (error) {
     next(error);
@@ -79,17 +82,20 @@ exports.confirm = async (req, res, next) => {
 
 exports.resetPasswordReq = async (req, res, next) => {
   try {
-    const { email } = req.params;
-    const user = await userServices.getUserByEmail(email);
+    const { email } = req.body;
+    const user = await userServices.getByEmail(email);
     if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
-    const emailToken = userServices.genToken(user, 'reset', 1);
+    const emailToken = userServices.genToken(user, 'reset', 30);
+
     await userServices.sendMail(
       email,
       emailToken,
       'Reset Password',
       'reset-password'
     );
-    const resUser = userServices.generalize(user);
+    // Store the token in the user so i can verify it used once
+    await userServices.updateResetToken({ token: emailToken, id: user.id });
+    const resUser = userServices.omitPassword(user);
     responser(res, StatusCodes.OK, { user: resUser });
   } catch (error) {
     next(error);
@@ -98,15 +104,22 @@ exports.resetPasswordReq = async (req, res, next) => {
 
 exports.resetPasswordRes = async (req, res, next) => {
   try {
+    // TODO dont allow multiple password changes
     const { token } = req.params;
     const { password } = req.body;
-    const decodedToken = await userServices.verifyToken(token, 'reset');
+    const decodedToken = userServices.verifyToken(token, 'reset');
     if (!decodedToken)
+      throw new ApiError('Token is not valid.', StatusCodes.UNAUTHORIZED);
+    const user = await userServices.getByEmail(decodedToken.email);
+    const userDidntUsedItBefore = (await user.resetToken) !== token;
+    if (userDidntUsedItBefore)
       throw new ApiError('Token is not valid.', StatusCodes.UNAUTHORIZED);
     await userServices.changePassword({
       id: decodedToken.id,
       password,
     });
+    // re empty the reset so he can reset again but not use the same reset token
+    await userServices.updateResetToken({ token: null, id: user.id });
     responser(res, StatusCodes.OK);
   } catch (error) {
     next(error);
@@ -115,7 +128,7 @@ exports.resetPasswordRes = async (req, res, next) => {
 
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await userServices.getAllUsers();
+    const users = await userServices.getAll();
     if (!users) throw new ApiError('Users not found.', StatusCodes.NOT_FOUND);
 
     responser(res, 200, { users });
@@ -127,7 +140,7 @@ exports.getAllUsers = async (req, res, next) => {
 exports.getUserById = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const user = await userServices.getUserById(userId);
+    const user = await userServices.getById(userId);
     if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
     return responser(res, 200, { user });
   } catch (error) {
@@ -138,9 +151,9 @@ exports.getUserById = async (req, res, next) => {
 exports.deleteUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const user = await userServices.getUserById(userId);
+    const user = await userServices.getById(userId);
     if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
-    await userServices.delete(userId);
+    await userServices.destroy(userId);
     responser(res);
   } catch (error) {
     next(error);
