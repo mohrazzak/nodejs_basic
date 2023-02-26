@@ -17,11 +17,32 @@ exports.login = async (req, res, next) => {
       hashedPassword: user.password,
     });
 
-    const token = userServices.genToken(user, 'confirm', 60);
+    const { authToken, refreshToken } = userServices.genToken(user, 'AUTH');
+
+    await userServices.update(user.id, { refreshToken });
+
     const resUser = userServices.omitPassword(user);
 
+    if (req.cookies.authToken) req.cookies.authToken = '';
+    if (req.cookies.refreshToken) req.cookies.refreshToken = '';
+
+    res.cookie('authToken', authToken, {
+      path: '/',
+      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 7d
+      httpOnly: true,
+      sameSite: 'none',
+      secure: false,
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      path: '/',
+      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 7d
+      httpOnly: true,
+      sameSite: 'none',
+      secure: false,
+    });
+
     responser(res, StatusCodes.OK, {
-      token,
       user: resUser,
     });
   } catch (error) {
@@ -50,7 +71,7 @@ exports.register = async (req, res, next) => {
       });
     const resUser = userServices.omitPassword(user);
 
-    const emailToken = userServices.genToken(resUser, 'confirm', 60);
+    const emailToken = userServices.genToken(resUser, 'EMAIL', 60);
     await userServices.sendMail(
       email,
       emailToken,
@@ -67,7 +88,10 @@ exports.register = async (req, res, next) => {
 exports.confirm = async (req, res, next) => {
   try {
     const { token } = req.params;
-    const decodedToken = userServices.verifyToken(token, 'confirm');
+    const decodedToken = userServices.verifyToken({
+      token,
+      tokenType: 'EMAIL',
+    });
     const activated = await userServices.activate(decodedToken.id);
     if (!activated)
       throw new ApiError(
@@ -85,7 +109,7 @@ exports.resetPasswordReq = async (req, res, next) => {
     const { email } = req.body;
     const user = await userServices.getByEmail(email);
     if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
-    const emailToken = userServices.genToken(user, 'reset', 30);
+    const emailToken = userServices.genToken(user, 'EMAIL', 30);
 
     await userServices.sendMail(
       email,
@@ -94,7 +118,7 @@ exports.resetPasswordReq = async (req, res, next) => {
       'reset-password'
     );
     // Store the token in the user so i can verify it used once
-    await userServices.updateResetToken({ token: emailToken, id: user.id });
+    await userServices.update(user.id, { resetToken: emailToken });
     const resUser = userServices.omitPassword(user);
     responser(res, StatusCodes.OK, { user: resUser });
   } catch (error) {
@@ -107,7 +131,10 @@ exports.resetPasswordRes = async (req, res, next) => {
     // TODO dont allow multiple password changes
     const { token } = req.params;
     const { password } = req.body;
-    const decodedToken = userServices.verifyToken(token, 'reset');
+    const decodedToken = userServices.verifyToken({
+      token,
+      tokenType: 'EMAIL',
+    });
     if (!decodedToken)
       throw new ApiError('Token is not valid.', StatusCodes.UNAUTHORIZED);
     const user = await userServices.getByEmail(decodedToken.email);
@@ -151,10 +178,18 @@ exports.getUserById = async (req, res, next) => {
 exports.deleteUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const user = await userServices.getById(userId);
-    if (!user) throw new ApiError('User not found.', StatusCodes.NOT_FOUND);
     await userServices.destroy(userId);
     responser(res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getProfile = async (req, res, next) => {
+  try {
+    const { id } = req.user;
+    const user = await userServices.getById(id);
+    responser(res, StatusCodes.OK, { user });
   } catch (error) {
     next(error);
   }

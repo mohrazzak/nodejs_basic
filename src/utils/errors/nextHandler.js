@@ -1,6 +1,9 @@
+const deleteFile = require('../deleteFile');
+
 // eslint-disable-next-line no-unused-vars
 module.exports = (error, req, res, next) => {
-  // console.error(`\x1b[31m[Error] | \x1b[0m${error}`);
+  // check if the request object contains an uploaded image file
+  if (req.file) deleteFile(req.file.path);
   console.log(error);
   const { message = 'An error occoured.', statusCode = 500, data = {} } = error;
   res.status(statusCode).json({ message, data });

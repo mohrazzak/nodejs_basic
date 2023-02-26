@@ -16,6 +16,7 @@ const {
   PRO_URL,
   NODE_PORT,
   AUTH_TOKEN,
+  REFRESH_TOKEN,
 } = process.env;
 
 module.exports = Object.freeze({
@@ -34,4 +35,5 @@ module.exports = Object.freeze({
   PRO_URL,
   NODE_PORT,
   AUTH_TOKEN,
+  REFRESH_TOKEN,
 });

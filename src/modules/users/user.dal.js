@@ -66,12 +66,10 @@ class UserDAL {
     return true;
   }
 
-
-  async updateResetToken({ token, id }) {
-    const [numUpdatedRows] = await this.#UserModel.update(
-      { resetToken: token },
-      { where: { id } }
-    );
+  async update(id, updatedInfo) {
+    const [numUpdatedRows] = await this.#UserModel.update(updatedInfo, {
+      where: { id },
+    });
     if (numUpdatedRows === 0) {
       throw new ApiError('User not found', StatusCodes.NOT_FOUND);
     }

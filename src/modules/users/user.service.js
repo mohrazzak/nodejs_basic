@@ -14,6 +14,7 @@ const {
     LOCAL_URL,
     NODE_PORT,
     AUTH_TOKEN,
+    REFRESH_TOKEN,
   },
 } = require('../../config');
 
@@ -26,17 +27,17 @@ class UserServices {
     return this.userDAL.create(user);
   }
 
-  genToken({ id, isAdmin, email }, tokenType, minutes) {
-    return jwt.sign(
-      {
-        id,
-        isAdmin,
-        email,
-      },
-      tokenType === 'reset' ? EMAIL_TOKEN : AUTH_TOKEN,
-      { expiresIn: `${minutes}m` }
-    );
-  }
+  // genToken({ id, isAdmin, email }, tokenType, minutes) {
+  //   return jwt.sign(
+  //     {
+  //       id,
+  //       isAdmin,
+  //       email,
+  //     },
+  //     tokenType === 'reset' ? EMAIL_TOKEN : AUTH_TOKEN,
+  //     { expiresIn: `${minutes}m` }
+  //   );
+  // }
 
   omitPassword(user) {
     const { password, ...rest } = user;
@@ -53,7 +54,7 @@ class UserServices {
     } catch (err) {
       throw new ApiError(
         'Password incorrect',
-        StatusCodes.INTERNAL_SERVER_ERROR
+        StatusCodes.INTERNAL_SERVER_ApiError
       );
     }
   }
@@ -76,15 +77,15 @@ class UserServices {
       return hashedPasswrd;
     } catch (err) {
       throw new ApiError(
-        'Error hashing password',
-        StatusCodes.INTERNAL_SERVER_ERROR
+        'ApiError hashing password',
+        StatusCodes.INTERNAL_SERVER_ApiError
       );
     }
   }
 
   async sendMail(email, token, subject, path) {
     try {
-      const mailURL = `${LOCAL_URL}:${NODE_PORT}/${path}/${token}`;
+      const mailURL = `${LOCAL_URL}:${NODE_PORT}/users/${path}/${token}`;
       if (NODE_ENV === 'development') console.log(mailURL);
 
       const transporter = nodemailer.createTransport({
@@ -109,26 +110,25 @@ class UserServices {
         `,
       });
     } catch (err) {
-      console.log(err);
       throw new ApiError(`Failed to send email`);
     }
   }
 
-  verifyToken(token, tokenType) {
-    try {
-      const SECRET = tokenType === 'reset' ? EMAIL_TOKEN : AUTH_TOKEN;
-      const decodedToken = jwt.verify(token, SECRET);
-      return decodedToken;
-    } catch (err) {
-      throw new ApiError(
-        `Failed to verify token: ${err.message}`,
-        StatusCodes.UNAUTHORIZED
-      );
-    }
-  }
+  // verifyToken(token, tokenType) {
+  //   try {
+  //     const SECRET = tokenType === 'reset' ? EMAIL_TOKEN : AUTH_TOKEN;
+  //     const decodedToken = jwt.verify(token, SECRET);
+  //     return decodedToken;
+  //   } catch (err) {
+  //     throw new ApiError(
+  //       `Failed to verify token: ${err.message}`,
+  //       StatusCodes.UNAUTHORIZED
+  //     );
+  //   }
+  // }
 
-  updateResetToken({ token, id }) {
-    return this.userDAL.updateResetToken({ token, id });
+  update(userId, updatedInfo) {
+    return this.userDAL.update(userId, updatedInfo);
   }
 
   async changePassword({ id, password }) {
@@ -160,6 +160,37 @@ class UserServices {
 
   destroy(userId) {
     return this.userDAL.destroy(userId);
+  }
+
+  // Verifies a token and returns the decoded token if valid
+  verifyToken({ token, tokenType }) {
+    const secret = this.getSecret(tokenType);
+    return jwt.verify(token, secret);
+  }
+
+  genToken({ isAdmin, id, isActive }, tokenType, expiresInMs) {
+    try {
+      const secret = this.getSecret(tokenType);
+      return jwt.sign({ isAdmin, id, isActive }, secret, {
+        expiresIn: `${expiresInMs}ms`,
+      });
+    } catch (err) {
+      throw new ApiError(`Failed to verify token.`, StatusCodes.UNAUTHORIZED);
+    }
+  }
+
+  // Returns the secret for the given token type
+  getSecret(tokenType) {
+    switch (tokenType) {
+      case 'AUTH':
+        return AUTH_TOKEN;
+      case 'EMAIL':
+        return EMAIL_TOKEN;
+      case 'REFRESH':
+        return REFRESH_TOKEN;
+      default:
+        throw new ApiError(`Unknown token type: ${tokenType}`);
+    }
   }
 }
 

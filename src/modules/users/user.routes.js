@@ -8,6 +8,7 @@ const {
   resetPasswordRes,
   confirm,
   deleteUser,
+  getProfile,
 } = require('./user.controller');
 const { isAdmin, isAuth } = require('../../middlewares/auth');
 const userValidator = require('./user.validation');
@@ -16,6 +17,8 @@ const { validate } = require('../../middlewares');
 const router = express.Router();
 
 router.get('/', isAuth, isAdmin, getAllUsers);
+
+router.get('/profile', isAuth, getProfile);
 
 router.get('/:userId', validate(userValidator.getUserById), getUserById);
 
@@ -44,5 +47,6 @@ router.delete(
   isAdmin,
   deleteUser
 );
+
 
 module.exports = router;

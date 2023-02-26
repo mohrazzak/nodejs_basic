@@ -16,6 +16,7 @@ const User = db.define('Users', {
   isActive: { type: DataTypes.BOOLEAN, defaultValue: false },
   isAdmin: { type: DataTypes.BOOLEAN, defaultValue: false },
   resetToken: { type: DataTypes.STRING, defaultValue: null },
+  refreshToken: { type: DataTypes.STRING, defaultValue: null },
 });
 
 module.exports = User;
